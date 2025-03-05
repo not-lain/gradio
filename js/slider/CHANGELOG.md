@@ -1,5 +1,30 @@
 # @gradio/slider
 
+## 0.6.2
+
+### Dependency updates
+
+- @gradio/statustracker@0.10.4
+- @gradio/atoms@0.13.3
+
+## 0.6.1
+
+### Dependency updates
+
+- @gradio/statustracker@0.10.3
+- @gradio/atoms@0.13.2
+- @gradio/utils@0.10.1
+
+## 0.6.0
+
+### Features
+
+- [#10340](https://github.com/gradio-app/gradio/pull/10340) [`a91cb9c`](https://github.com/gradio-app/gradio/commit/a91cb9c42c02b70273b4cd55ab18148a7436fe57) - Add `show_reset_button` to `gr.slider` initialization.  Thanks @amanchauhan11!
+
+### Dependency updates
+
+- @gradio/statustracker@0.10.2
+
 ## 0.5.11
 
 ### Dependency updates

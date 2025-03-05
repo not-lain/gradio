@@ -127,7 +127,7 @@ class Interface(Blocks):
         concurrency_limit: int | None | Literal["default"] = "default",
         css: str | None = None,
         css_paths: str | Path | Sequence[str | Path] | None = None,
-        js: str | None = None,
+        js: str | Literal[True] | None = None,
         head: str | None = None,
         head_paths: str | Path | Sequence[str | Path] | None = None,
         additional_inputs: str | Component | Sequence[str | Component] | None = None,
@@ -809,18 +809,18 @@ class Interface(Blocks):
             None,
             [],
             ([input_component_column] if input_component_column else []),  # type: ignore
-            js=f"""() => {json.dumps(
-
-                    [{'variant': None, 'visible': True, '__type__': 'update'}]
+            js=f"""() => {
+                json.dumps(
+                    [{"variant": None, "visible": True, "__type__": "update"}]
                     if self.interface_type
-                       in [
-                           InterfaceTypes.STANDARD,
-                           InterfaceTypes.INPUT_ONLY,
-                           InterfaceTypes.UNIFIED,
-                       ]
+                    in [
+                        InterfaceTypes.STANDARD,
+                        InterfaceTypes.INPUT_ONLY,
+                        InterfaceTypes.UNIFIED,
+                    ]
                     else []
-
-            )}
+                )
+            }
             """,
         )
 
@@ -947,7 +947,7 @@ class TabbedInterface(Blocks):
         theme: Theme | str | None = None,
         analytics_enabled: bool | None = None,
         css: str | None = None,
-        js: str | None = None,
+        js: str | Literal[True] | None = None,
         head: str | None = None,
     ):
         """
@@ -984,7 +984,7 @@ class TabbedInterface(Blocks):
                 for interface, tab_name in zip(interface_list, tab_names, strict=False):
                     with Tab(
                         label=tab_name,
-                        scale=1 if interface.fill_height else 0,
+                        scale=1 if interface.fill_height else None,
                     ):
                         interface.render()
 

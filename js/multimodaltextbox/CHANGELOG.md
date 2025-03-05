@@ -1,5 +1,76 @@
 # @gradio/multimodaltextbox
 
+## 0.9.9
+
+### Dependency updates
+
+- @gradio/upload@0.15.3
+- @gradio/video@0.14.3
+- @gradio/client@1.13.0
+- @gradio/image@0.21.3
+
+## 0.9.8
+
+### Dependency updates
+
+- @gradio/image@0.21.2
+- @gradio/upload@0.15.2
+- @gradio/statustracker@0.10.4
+- @gradio/video@0.14.2
+- @gradio/atoms@0.13.3
+
+## 0.9.7
+
+### Dependency updates
+
+- @gradio/statustracker@0.10.3
+- @gradio/video@0.14.1
+- @gradio/atoms@0.13.2
+- @gradio/utils@0.10.1
+- @gradio/client@1.12.0
+- @gradio/upload@0.15.1
+- @gradio/image@0.21.1
+
+## 0.9.6
+
+### Dependency updates
+
+- @gradio/client@1.11.0
+- @gradio/upload@0.15.0
+- @gradio/image@0.21.0
+- @gradio/video@0.14.0
+
+## 0.9.5
+
+### Dependency updates
+
+- @gradio/upload@0.14.8
+- @gradio/image@0.20.4
+- @gradio/video@0.13.4
+
+## 0.9.4
+
+### Dependency updates
+
+- @gradio/upload@0.14.7
+- @gradio/image@0.20.3
+- @gradio/video@0.13.3
+
+## 0.9.3
+
+### Fixes
+
+- [#10405](https://github.com/gradio-app/gradio/pull/10405) [`92dda15`](https://github.com/gradio-app/gradio/commit/92dda15f6d1c71929d3bdca1910734309db72458) - Hide the waveform when playing recorded audio if `show_recording_waveform` is `False`.  Thanks @abidlabs!
+
+## 0.9.2
+
+### Dependency updates
+
+- @gradio/upload@0.14.6
+- @gradio/video@0.13.2
+- @gradio/statustracker@0.10.2
+- @gradio/image@0.20.2
+
 ## 0.9.1
 
 ### Fixes

@@ -132,7 +132,8 @@ class Sketchpad(components.ImageEditor):
         brush: Brush | None = None,
         format: str = "webp",
         layers: bool = True,
-        canvas_size: tuple[int, int] | None = None,
+        canvas_size: tuple[int, int] = (800, 800),
+        fixed_canvas: bool = False,
         show_fullscreen_button: bool = True,
     ):
         if not brush:
@@ -170,6 +171,7 @@ class Sketchpad(components.ImageEditor):
             layers=layers,
             canvas_size=canvas_size,
             show_fullscreen_button=show_fullscreen_button,
+            fixed_canvas=fixed_canvas,
         )
 
 
@@ -217,7 +219,8 @@ class Paint(components.ImageEditor):
         brush: Brush | None = None,
         format: str = "webp",
         layers: bool = True,
-        canvas_size: tuple[int, int] | None = None,
+        canvas_size: tuple[int, int] = (800, 800),
+        fixed_canvas: bool = False,
         show_fullscreen_button: bool = True,
         placeholder: str | None = None,
     ):
@@ -254,6 +257,7 @@ class Paint(components.ImageEditor):
             canvas_size=canvas_size,
             show_fullscreen_button=show_fullscreen_button,
             placeholder=placeholder,
+            fixed_canvas=fixed_canvas,
         )
 
 
@@ -305,8 +309,9 @@ class ImageMask(components.ImageEditor):
         eraser: Eraser | None = None,
         brush: Brush | None = None,
         format: str = "webp",
-        layers: bool = True,
-        canvas_size: tuple[int, int] | None = None,
+        layers: bool = False,
+        canvas_size: tuple[int, int] = (800, 800),
+        fixed_canvas: bool = False,
         show_fullscreen_button: bool = True,
     ):
         if not brush:
@@ -344,6 +349,7 @@ class ImageMask(components.ImageEditor):
             layers=layers,
             canvas_size=canvas_size,
             show_fullscreen_button=show_fullscreen_button,
+            fixed_canvas=fixed_canvas,
         )
 
 
@@ -573,7 +579,10 @@ class Numpy(components.Dataframe):
         headers: list[str] | None = None,
         row_count: int | tuple[int, str] = (1, "dynamic"),
         col_count: int | tuple[int, str] | None = None,
-        datatype: str | list[str] = "str",
+        datatype: Literal["str", "number", "bool", "date", "markdown", "html"]
+        | Sequence[
+            Literal["str", "number", "bool", "date", "markdown", "html"]
+        ] = "str",
         type: Literal["numpy"] = "numpy",
         latex_delimiters: list[dict[str, str | bool]] | None = None,
         label: str | None = None,
@@ -596,7 +605,11 @@ class Numpy(components.Dataframe):
         line_breaks: bool = True,
         column_widths: list[str | int] | None = None,
         show_row_numbers: bool = False,
+        show_search: Literal["none", "search", "filter"] = "none",
+        pinned_columns: int | None = None,
         show_fullscreen_button: bool = False,
+        max_chars: int | None = None,
+        show_copy_button: bool = False,
     ):
         super().__init__(
             value=value,
@@ -623,7 +636,11 @@ class Numpy(components.Dataframe):
             latex_delimiters=latex_delimiters,
             min_width=min_width,
             show_row_numbers=show_row_numbers,
+            show_search=show_search,
+            pinned_columns=pinned_columns,
             show_fullscreen_button=show_fullscreen_button,
+            max_chars=max_chars,
+            show_copy_button=show_copy_button,
         )
 
 
@@ -641,7 +658,10 @@ class Matrix(components.Dataframe):
         headers: list[str] | None = None,
         row_count: int | tuple[int, str] = (1, "dynamic"),
         col_count: int | tuple[int, str] | None = None,
-        datatype: str | list[str] = "str",
+        datatype: Literal["str", "number", "bool", "date", "markdown", "html"]
+        | Sequence[
+            Literal["str", "number", "bool", "date", "markdown", "html"]
+        ] = "str",
         type: Literal["array"] = "array",
         latex_delimiters: list[dict[str, str | bool]] | None = None,
         label: str | None = None,
@@ -664,7 +684,11 @@ class Matrix(components.Dataframe):
         line_breaks: bool = True,
         column_widths: list[str | int] | None = None,
         show_row_numbers: bool = False,
-        show_fullscreen_button: bool = True,
+        show_search: Literal["none", "search", "filter"] = "none",
+        pinned_columns: int | None = None,
+        show_fullscreen_button: bool = False,
+        max_chars: int | None = None,
+        show_copy_button: bool = False,
     ):
         super().__init__(
             value=value,
@@ -691,7 +715,11 @@ class Matrix(components.Dataframe):
             latex_delimiters=latex_delimiters,
             min_width=min_width,
             show_row_numbers=show_row_numbers,
+            show_search=show_search,
+            pinned_columns=pinned_columns,
             show_fullscreen_button=show_fullscreen_button,
+            max_chars=max_chars,
+            show_copy_button=show_copy_button,
         )
 
 
@@ -709,7 +737,10 @@ class List(components.Dataframe):
         headers: list[str] | None = None,
         row_count: int | tuple[int, str] = (1, "dynamic"),
         col_count: Literal[1] = 1,
-        datatype: str | list[str] = "str",
+        datatype: Literal["str", "number", "bool", "date", "markdown", "html"]
+        | Sequence[
+            Literal["str", "number", "bool", "date", "markdown", "html"]
+        ] = "str",
         type: Literal["array"] = "array",
         latex_delimiters: list[dict[str, str | bool]] | None = None,
         label: str | None = None,
@@ -732,7 +763,11 @@ class List(components.Dataframe):
         line_breaks: bool = True,
         column_widths: list[str | int] | None = None,
         show_row_numbers: bool = False,
-        show_fullscreen_button: bool = True,
+        show_search: Literal["none", "search", "filter"] = "none",
+        pinned_columns: int | None = None,
+        show_fullscreen_button: bool = False,
+        max_chars: int | None = None,
+        show_copy_button: bool = False,
     ):
         super().__init__(
             value=value,
@@ -759,7 +794,11 @@ class List(components.Dataframe):
             latex_delimiters=latex_delimiters,
             min_width=min_width,
             show_row_numbers=show_row_numbers,
+            show_search=show_search,
+            pinned_columns=pinned_columns,
             show_fullscreen_button=show_fullscreen_button,
+            max_chars=max_chars,
+            show_copy_button=show_copy_button,
         )
 
 

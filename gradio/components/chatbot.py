@@ -44,7 +44,7 @@ class MetadataDict(TypedDict):
         parent_id: The ID of the parent message. Only used for nested thoughts.
         log: A string message to display next to the thought title in a subdued font.
         duration: The duration of the message in seconds. Appears next to the thought title in a subdued font inside a parentheses.
-        status: The status of the message. If "pending", the status is displayed as a spinner icon.
+        status: The status of the message. If "pending", a spinner icon appears next to the thought title. If "done", the thought accordion becomes closed. If no value is provided, the thought accordion is open and no spinner is displayed.
     """
 
     title: NotRequired[str]
@@ -216,7 +216,8 @@ class Chatbot(Component):
         render: bool = True,
         key: int | str | None = None,
         height: int | str | None = 400,
-        resizeable: bool = False,
+        resizable: bool = False,
+        resizeable: bool = False,  # Deprecated, TODO: Remove
         max_height: int | str | None = None,
         min_height: int | str | None = None,
         editable: Literal["user", "all"] | None = None,
@@ -237,6 +238,7 @@ class Chatbot(Component):
         show_copy_all_button=False,
         allow_file_downloads=True,
         group_consecutive_messages: bool = True,
+        allow_tags: list[str] | None = None,
     ):
         """
         Parameters:
@@ -256,7 +258,7 @@ class Chatbot(Component):
             render: If False, component will not render be rendered in the Blocks context. Should be used if the intention is to assign event listeners now but render the component later.
             key: if assigned, will be used to assume identity across a re-render. Components that have the same key across a re-render will have their value preserved.
             height: The height of the component, specified in pixels if a number is passed, or in CSS units if a string is passed. If messages exceed the height, the component will scroll.
-            resizeable: If True, the component will be resizeable by the user.
+            resizable: If True, the user of the Gradio app can resize the chatbot by dragging the bottom right corner.
             max_height: The maximum height of the component, specified in pixels if a number is passed, or in CSS units if a string is passed. If messages exceed the height, the component will scroll. If messages are shorter than the height, the component will shrink to fit the content. Will not have any effect if `height` is set and is smaller than `max_height`.
             min_height: The minimum height of the component, specified in pixels if a number is passed, or in CSS units if a string is passed. If messages exceed the height, the component will expand to fit the content. Will not have any effect if `height` is set and is larger than `min_height`.
             editable: Allows user to edit messages in the chatbot. If set to "user", allows editing of user messages. If set to "all", allows editing of assistant messages as well.
@@ -277,6 +279,7 @@ class Chatbot(Component):
             show_copy_all_button: If True, will show a copy all button that copies all chatbot messages to the clipboard.
             allow_file_downloads: If True, will show a download button for chatbot messages that contain media. Defaults to True.
             group_consecutive_messages: If True, will display consecutive messages from the same role in the same bubble. If False, will display each message in a separate bubble. Defaults to True.
+            allow_tags: If provided, these tags will be preserved in the output chatbot messages, even if `sanitize_html` is `True`. For example, if this list is ["thinking"], the tags `<thinking>` and `</thinking>` will not be removed.
         """
         if type is None:
             warnings.warn(
@@ -297,7 +300,13 @@ class Chatbot(Component):
         self._setup_data_model()
         self.autoscroll = autoscroll
         self.height = height
-        self.resizeable = resizeable
+        if resizeable is not False:
+            warnings.warn(
+                "The 'resizeable' parameter is deprecated and will be removed in a future version. Please use the 'resizable' (note the corrected spelling) parameter instead.",
+                DeprecationWarning,
+            )
+            self.resizable = resizeable
+        self.resizable = resizable
         self.max_height = max_height
         self.min_height = min_height
         self.editable = editable
@@ -326,6 +335,7 @@ class Chatbot(Component):
         self.allow_file_downloads = allow_file_downloads
         self.feedback_options = feedback_options
         self.feedback_value = feedback_value
+        self.allow_tags = allow_tags
         super().__init__(
             label=label,
             every=every,

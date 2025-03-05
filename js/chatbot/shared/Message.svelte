@@ -50,6 +50,7 @@
 	export let edit_message: string;
 	export let display_consecutive_in_same_bubble: boolean;
 	export let current_feedback: string | null = null;
+	export let allow_tags: string[] | null = null;
 	let messageElements: HTMLDivElement[] = [];
 	let previous_edit_mode = false;
 	let last_message_width = 0;
@@ -209,6 +210,7 @@
 								<MessageContent
 									{message}
 									{sanitize_html}
+									{allow_tags}
 									{latex_delimiters}
 									{render_markdown}
 									{_components}
@@ -249,6 +251,11 @@
 	.message {
 		position: relative;
 		width: 100%;
+		margin-top: var(--spacing-sm);
+	}
+
+	.message.display_consecutive_in_same_bubble {
+		margin-top: 0;
 	}
 
 	/* avatar styles */
@@ -489,7 +496,7 @@
 		height: 100%;
 		object-fit: cover;
 		border-radius: 50%;
-		padding: 6px;
+		padding: var(--size-1-5);
 	}
 
 	.selectable {

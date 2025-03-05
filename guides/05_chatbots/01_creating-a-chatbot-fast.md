@@ -16,15 +16,15 @@ $ pip install --upgrade gradio
 
 ## Note for OpenAI-API compatible endpoints
 
-If you have a chat server serving an OpenAI-API compatible endpoint (e.g. Ollama), you can spin up a ChatInterface in a single line of Python. First, also run `pip install openai`. Then, with your own URL, model, and optional token:
+If you have a chat server serving an OpenAI-API compatible endpoint (such as Ollama), you can spin up a ChatInterface in a single line of Python. First, also run `pip install openai`. Then, with your own URL, model, and optional token:
 
 ```python
 import gradio as gr
 
-gr.load_chat("http://localhost:11434/v1/", model="llama3.2", token="ollama").launch()
+gr.load_chat("http://localhost:11434/v1/", model="llama3.2", token="***").launch()
 ```
 
-If you have your own model, keep reading to see how to create an application around any chat model in Python!
+Read about `gr.load_chat` in [the docs](https://www.gradio.app/docs/gradio/load_chat). If you have your own model, keep reading to see how to create an application around any chat model in Python!
 
 ## Defining a chat function
 
@@ -365,7 +365,7 @@ As you can see, the `gr.ChatMessage` dataclass is similar to the openai-style me
 
 $code_chatinterface_thoughts
 
-You can even show nested thoughts, which is useful for agent demos in which one tool may call other tools. To display nested thoughts, include "id" and "parent_id" keys in the "metadata" dictionary. Read our [dedicated guide on displaying intermediate thoughts and tool usage](/guides/chatbots/agents-and-tool-usage) for more realistic examples.
+You can even show nested thoughts, which is useful for agent demos in which one tool may call other tools. To display nested thoughts, include "id" and "parent_id" keys in the "metadata" dictionary. Read our [dedicated guide on displaying intermediate thoughts and tool usage](/guides/agents-and-tool-usage) for more realistic examples.
 
 **Providing preset responses**
 

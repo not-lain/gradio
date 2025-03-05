@@ -2,6 +2,7 @@
 	import { BaseCode as Code, BaseWidget as CodeWidget } from "@gradio/code";
 	import { BaseTabs as Tabs, type Tab } from "@gradio/tabs";
 	import { BaseTabItem as TabItem } from "@gradio/tabitem";
+	import { Toast as ErrorModal } from "@gradio/statustracker";
 	import Slider from "../Slider.svelte";
 	import Fullscreen from "../icons/Fullscreen.svelte";
 	import Close from "../icons/Close.svelte";
@@ -13,21 +14,138 @@
 	import { onMount } from "svelte";
 	import SYSTEM_PROMPT from "$lib/json/system_prompt.json";
 	import WHEEL from "$lib/json/wheel.json";
+	import logo_melted from "$lib/assets/img/logo-melted.png";
 
-	let generated = true;
+	export let suggested_links: {
+		title: string;
+		url: string;
+		type: string;
+		requirements: string[];
+	}[] = [];
 
-	let current_code = false;
-	let compare = false;
+	$: suggested_links;
+
+	export let edited_demos: string[] = [];
+
+	$: edited_demos;
+
+	interface CodeState {
+		status: "idle" | "generating" | "error" | "regenerating";
+		code_edited: boolean;
+		code_exists: boolean;
+		model_info: string;
+		generation_error: string;
+	}
+
+	let code_state: CodeState = {
+		status: "idle",
+		code_edited: true,
+		code_exists: false,
+		model_info: "",
+		generation_error: ""
+	};
+
+	$: code_state;
+
+	let non_lite_demos = [
+		"chatbot_dialogpt",
+		"text_generation",
+		"xgboost-income-prediction-with-explainability",
+		"same-person-or-different",
+		"question-answering",
+		"chicago-bikeshare-dashboard",
+		"image_classifier_2",
+		"llm_hf_transformers",
+		"progress",
+		"image_classifier",
+		"translation",
+		"blocks_speech_text_sentiment",
+		"yolov10_webcam_stream",
+		"stream_asr",
+		"rt-detr-object-detection",
+		"depth_estimation",
+		"unispeech-speaker-verification",
+		"stable-diffusion",
+		"text_analysis",
+		"asr",
+		"streaming_wav2vec",
+		"magic_8_ball",
+		"animeganv2",
+		"generate_english_german",
+		"musical_instrument_identification",
+		"ner_pipeline",
+		"map_airbnb",
+		"english_translator",
+		"unified_demo_text_generation",
+		"timeseries-forecasting-with-prophet",
+		"image_classification",
+		"diffusers_with_batching"
+	];
+
+	let hide_preview = false;
+
+	$: hide_preview;
+
+	let system_prompt = SYSTEM_PROMPT.SYSTEM;
+	let fallback_prompt = SYSTEM_PROMPT.FALLBACK;
+
+	let prompt_rules = [
+		`Generate code for using the Gradio python library.
+
+	The following RULES must be followed.  Whenever you are forming a response, ensure all rules have been followed otherwise start over.
+
+	RULES:
+	Only respond with code, not text.
+	Only respond with valid Python syntax.
+	Never include backticks in your response such as \`\`\` or \`\`\`python.
+	Do not include any code that is not necessary for the app to run.
+	Respond with a full Gradio app.
+	Respond with a full Gradio app using correct syntax and features of the latest Gradio version. DO NOT write code that doesn't follow the signatures listed.
+	Add comments explaining the code, but do not include any text that is not formatted as a Python comment.
+	Make sure the code includes all necessary imports.
+
+
+	Here's an example of a valid response:
+
+	# This is a simple Gradio app that greets the user.
+	import gradio as gr
+
+	# Define a function that takes a name and returns a greeting.
+	def greet(name):
+		return "Hello " + name + "!"
+
+	# Create a Gradio interface that takes a textbox input, runs it through the greet function, and returns output to a textbox.
+	demo = gr.Interface(fn=greet, inputs="textbox", outputs="textbox")
+
+	# Launch the interface.
+	demo.launch()
+`,
+		`
+	The following RULES must be followed.  Whenever you are forming a response, after each sentence ensure all rules have been followed otherwise start over, forming a new response and repeat until the finished response follows all the rules.  then send the response.
+
+	RULES: 
+	Only respond with code, not text.
+	Only respond with valid Python syntax.
+	Never include backticks in your response such as \`\`\` or \`\`\`python. 
+	Never import any external library aside from: gradio, numpy, pandas, plotly, transformers_js and matplotlib. Do not import any other library like pytesseract or PIL unless requested in the prompt. 
+	Do not include any code that is not necessary for the app to run.
+	Respond with a full Gradio app using correct syntax and features of the latest Gradio version. DO NOT write code that doesn't follow the signatures listed.
+	Only respond with one full Gradio app.
+	Add comments explaining the code, but do not include any text that is not formatted as a Python comment.
+`
+	];
+	system_prompt = prompt_rules[0] + system_prompt + prompt_rules[1];
+	fallback_prompt = prompt_rules[0] + fallback_prompt + prompt_rules[1];
 
 	const workerUrl = "https://playground-worker.pages.dev/api/generate";
 	// const workerUrl = "http://localhost:5173/api/generate";
-	let model_info = "";
 
 	let abortController: AbortController | null = null;
 
 	async function* streamFromWorker(
 		query: string,
 		system_prompt: string,
+		fallback_prompt: string,
 		signal: AbortSignal
 	) {
 		const response = await fetch(workerUrl, {
@@ -37,15 +155,14 @@
 			},
 			body: JSON.stringify({
 				query: query,
-				SYSTEM_PROMPT: system_prompt
+				SYSTEM_PROMPT: system_prompt,
+				FALLBACK_PROMPT: fallback_prompt
 			}),
 			signal
 		});
 
 		if (response.status == 429) {
-			generation_error = "Too busy... :( Please try again later.";
-			await new Promise((resolve) => setTimeout(resolve, 4000));
-			generation_error = "";
+			code_state.generation_error = "Too busy... :( Please try again later.";
 			return;
 		}
 
@@ -76,24 +193,26 @@
 						try {
 							const parsed = JSON.parse(data);
 							if (parsed.model) {
-								model_info = parsed.model;
-								console.log("Model used:", model_info);
+								code_state.model_info = parsed.model;
+								console.log("Model used:", code_state.model_info);
 							} else if (parsed.error) {
 								console.log(parsed.error);
 								if (parsed.error == "Existing code is too long") {
-									generation_error = "Existing code is too long";
+									code_state.generation_error = "Existing code is too long";
+									return;
 								} else {
-									generation_error = "Failed to fetch...";
+									code_state.generation_error = "Failed to fetch...";
 								}
-								await new Promise((resolve) => setTimeout(resolve, 2000));
-								generation_error = "";
-								// }
 							} else if (parsed.info) {
 								console.log(parsed.info);
 							} else if (parsed.requirements) {
 								yield { requirements: parsed.requirements };
 							} else if (parsed.choices && parsed.choices.length > 0) {
 								yield parsed;
+							} else if (parsed.suggested_links) {
+								if (suggested_links.length == 0) {
+									suggested_links = parsed.suggested_links;
+								}
 							}
 						} catch (e) {
 							console.error("Error parsing JSON:", e);
@@ -111,13 +230,14 @@
 		regeneration_run = false
 	) {
 		if (regeneration_run) {
-			regenerating = true;
+			code_state.status = "regenerating";
+		} else {
+			code_state.status = "generating";
+			suggested_links = [];
 		}
-		generated = false;
-		show_regenerate_button = false;
 		let out = "";
 
-		if (current_code) {
+		if (code_state.code_exists) {
 			query = "PROMPT: " + query;
 			query +=
 				"\n\nHere is the existing code that either you or the user has written. If it's relevant to the prompt, use it for context. If it's not relevant, ignore it.\n Existing Code: \n\n" +
@@ -135,7 +255,8 @@
 
 		for await (const chunk of streamFromWorker(
 			query,
-			SYSTEM_PROMPT.SYSTEM,
+			system_prompt,
+			fallback_prompt,
 			abortController.signal
 		)) {
 			if (chunk.requirements) {
@@ -144,9 +265,7 @@
 				const content = chunk.choices[0].delta.content;
 				if (content) {
 					out += content;
-					demos[queried_index].code =
-						out ||
-						"# Describe your app above, and the LLM will generate the code here.";
+					demos[queried_index].code = out;
 					demos[queried_index].code = demos[queried_index].code.replaceAll(
 						"```python\n",
 						""
@@ -166,9 +285,9 @@
 			}
 		}
 
-		generated = true;
-		regenerating = false;
-		auto_regenerate = true;
+		code_state.status = "idle";
+		code_state.code_edited = false;
+		user_query = "";
 
 		if (selected_demo.name === demo_name) {
 			highlight_changes(code_to_compare, demos[queried_index].code);
@@ -180,11 +299,9 @@
 		if (abortController) {
 			abortController.abort();
 		}
-		generated = true;
-		auto_regenerate = false;
+		code_state.generation_error = "Cancelled!";
+		code_state.status = "idle";
 		app_error = null;
-		show_regenerate_button = false;
-		regenerating = false;
 		selected_demo.code = code_to_compare;
 	}
 
@@ -192,6 +309,7 @@
 
 	function handle_user_query_key_down(e: KeyboardEvent): void {
 		if (e.key === "Enter") {
+			e.preventDefault();
 			run_as_update = false;
 			suspend_and_resume_auto_run(() => {
 				generate_code(user_query, selected_demo.name);
@@ -217,7 +335,7 @@
 
 	function clear_code() {
 		selected_demo.code = "";
-		current_code = false;
+		code_state.code_exists = false;
 	}
 
 	demos.push(blank_demo);
@@ -356,6 +474,11 @@
 
 	$: selected_demo =
 		demos.find((demo) => demo.name === current_selection) ?? demos[0];
+	$: if (non_lite_demos.includes(selected_demo.dir)) {
+		hide_preview = true;
+	} else {
+		hide_preview = false;
+	}
 	$: code = selected_demo?.code || "";
 	$: requirements = selected_demo?.requirements || [];
 	$: requirementsStr = requirements.join("\n"); // Use the stringified version to trigger reactivity only when the array values actually change, while the `requirements` object's identity always changes.
@@ -447,14 +570,23 @@
 
 	const demos_copy: typeof demos = JSON.parse(JSON.stringify(demos));
 
+	$: edited_demos = demos_copy
+		.filter((demo) => {
+			const edited = demos.find(
+				(d) => d.name === demo.name && d.code !== demo.code
+			);
+			return edited !== undefined;
+		})
+		.map((demo) => demo.name);
+
 	$: show_dialog(demos, demos_copy, shared);
 	$: if (code) {
 		shared = false;
 	}
 	$: if (selected_demo.code !== "") {
-		current_code = true;
+		code_state.code_exists = true;
 	} else {
-		current_code = false;
+		code_state.code_exists = false;
 	}
 
 	function create_spaces_url() {
@@ -513,19 +645,6 @@
 		return launch_code.replace(pattern, replacement);
 	};
 
-	let old_answer = "";
-
-	$: if (compare && browser) {
-		if (
-			selected_demo.code !==
-			"# Describe your app above, and the LLM will generate the code here."
-		) {
-			highlight_changes(old_answer, selected_demo.code);
-			old_answer = selected_demo.code;
-			compare = false;
-		}
-	}
-
 	const TABS: Tab[] = [
 		{
 			label: "Code",
@@ -568,9 +687,11 @@
 
 	$: setInterval(cycle_placeholder, 5000);
 
-	let generation_error = "";
-
-	$: generation_error;
+	$: if (code_state.generation_error) {
+		setTimeout(() => {
+			code_state.generation_error = "";
+		}, 4000);
+	}
 
 	let app_error: string | null = "";
 
@@ -579,10 +700,6 @@
 			if (!document.querySelector(".loading")) {
 				if (document.querySelector("div .error-name")) {
 					app_error = document.querySelector(".error-name").textContent;
-				} else if (document.querySelector("div .error .toast-title")) {
-					app_error = document.querySelector(
-						"div .error .toast-text"
-					).textContent;
 				} else if (stderr) {
 					app_error = stderr;
 					stderr = "";
@@ -596,72 +713,51 @@
 		}
 		if (
 			app_error &&
-			app_error.includes(
+			(app_error.includes(
 				"UserWarning: only soft file lock is available  from filelock import BaseFileLock, FileLock, SoftFileLock, Timeout"
-			)
+			) ||
+				app_error.includes(
+					"Matplotlib is building the font cache; this may take a moment."
+				))
 		) {
 			app_error = null;
+		}
+		if (app_error) {
+			code_state.status = "error";
 		}
 	}
 
 	$: app_error;
 
-	let auto_regenerate = false;
-
-	$: auto_regenerate;
-
 	let error_prompt;
-
-	let regenerating = false;
-
-	$: regenerating;
 
 	let auto_regenerate_user_toggle = true;
 
 	$: auto_regenerate_user_toggle;
 
 	async function regenerate_on_error(app_error) {
-		if (auto_regenerate && auto_regenerate_user_toggle) {
-			if (app_error && generated) {
-				user_query = app_error;
-				error_prompt = `There's an error when I run the existing code: ${app_error}`;
-				await generate_code(error_prompt, selected_demo.name, true);
-			}
-		} else {
-			if (app_error && generated) {
-				show_regenerate_button = true;
-			}
+		if (
+			code_state.status === "error" &&
+			auto_regenerate_user_toggle &&
+			app_error &&
+			!code_state.code_edited
+		) {
+			user_query = app_error;
+			error_prompt = `There's an error when I run the existing code: ${app_error}`;
+			await generate_code(error_prompt, selected_demo.name, true);
 		}
 	}
 
 	$: regenerate_on_error(app_error);
 
-	let show_regenerate_button = false;
-
-	$: show_regenerate_button;
-
-	$: if (app_error && generated && !user_query) {
+	$: if (app_error && !user_query && !hide_preview) {
 		user_query = app_error;
-		show_regenerate_button = true;
-	}
-	$: if (user_query !== app_error) {
-		show_regenerate_button = false;
-	}
-	$: if (!app_error && !regenerating && generated) {
-		user_query = "";
-		show_regenerate_button = false;
-	}
-
-	$: if (regenerating) {
-		show_regenerate_button = false;
-	}
-
-	$: if (!generated) {
-		show_regenerate_button = false;
 	}
 
 	let code_to_compare = code;
 	$: code_to_compare;
+
+	$: current_selection && (user_query = "");
 </script>
 
 <svelte:head>
@@ -730,8 +826,13 @@
 										readonly={false}
 										dark_mode={false}
 										on:change={(e) => {
-											if (generated) {
-												auto_regenerate = false;
+											code_state.code_edited = true;
+											if (user_query == app_error) {
+												app_error = null;
+												user_query = "";
+											}
+											if (code_state.status == "error") {
+												code_state.status = "idle";
 											}
 										}}
 									/>
@@ -764,10 +865,10 @@
 						</Tabs>
 					</div>
 
-					<div class="mr-2 items-center flex flex-row -mt-7">
+					<div class="mr-2 items-end flex flex-row -mt-7">
 						<div class="flex-grow">
 							<label
-								class="my-[1px] pl-2 relative z-10 bg-white float-left flex items-center transition-all duration-200 cursor-pointer font-normal text-sm leading-6"
+								class="my-1 pl-2 relative z-10 bg-white float-left flex items-center transition-all duration-200 cursor-pointer font-normal text-sm leading-6"
 							>
 								<input
 									bind:checked={auto_regenerate_user_toggle}
@@ -777,24 +878,40 @@
 									class=""
 								/>
 								<span class="text-gray-600 text-xs"
-									>Auto-fix errors from AI code</span
+									><span class="font-semibold">Agent Mode</span>: Auto-fix
+									errors in generated code</span
 								>
 							</label>
 						</div>
 
-						{#if generation_error}
+						{#if code_state.generation_error}
 							<div
-								class="pl-2 relative z-10 bg-red-100 border border-red-200 px-2 my-1 rounded-lg text-red-800 w-fit text-xs float-right"
+								class="my-2 z-10 text-xs float-right w-fit"
+								style="color-scheme: light"
 							>
-								{generation_error}
+								<ErrorModal
+									on:close={() => {
+										code_state.generation_error = "";
+									}}
+									messages={[
+										{
+											type: "error",
+											title: "Error",
+											message: code_state.generation_error,
+											id: 1,
+											duration: 4,
+											visible: true
+										}
+									]}
+								/>
 							</div>
-						{:else if regenerating}
+						{:else if code_state.status === "regenerating"}
 							<div
 								class="pl-2 relative z-10 bg-purple-100 border border-purple-200 px-2 my-1 rounded-lg text-purple-800 w-fit text-xs float-right"
 							>
 								Regenerating to fix error
 							</div>
-						{:else if current_code}
+						{:else if code_state.code_exists}
 							<div
 								class="pl-2 relative z-10 bg-white flex items-center float-right"
 							>
@@ -817,34 +934,37 @@
 							<div
 								class="pl-2 relative z-10 bg-white flex items-center float-right"
 							>
-								<p class="text-gray-600 my-1 text-xs">
-									<span style="font-weight: 500">Note:</span> This is
-									<span style="font-weight: 500">experimental</span>. Generated
-									code may be incorrect.
-								</p>
+								<p class="text-gray-600 my-1 text-xs"></p>
 							</div>
 						{/if}
 					</div>
 
 					<div class="search-bar border-t">
-						{#if regenerating}
+						{#if code_state.status === "regenerating"}
 							<div class="loader-purple"></div>
-						{:else if !generated}
+						{:else if code_state.status === "generating"}
 							<div class="loader"></div>
-						{:else if show_regenerate_button}
+						{:else if code_state.status === "error"}
 							<span style="color: transparent; text-shadow: 0 0 0 purple;"
 								>✨</span
 							>
 						{:else}
 							✨
 						{/if}
-						<input
+						<textarea
 							bind:value={user_query}
 							on:keydown={(e) => {
 								handle_user_query_key_down(e);
+								if (code_state.status === "error") {
+									user_query = "";
+									app_error = null;
+									code_state.status = "idle";
+								}
+							}}
+							on:change={(e) => {
 								app_error = null;
 							}}
-							placeholder={current_code
+							placeholder={code_state.code_exists
 								? update_placeholders[current_placeholder_index]
 								: generate_placeholders[current_placeholder_index]}
 							autocomplete="off"
@@ -852,12 +972,13 @@
 							autocapitalize="off"
 							enterkeyhint="go"
 							spellcheck="false"
-							type="search"
 							id="user-query"
-							class:grayed={!generated}
+							class="w-full resize-none content-center px-2 border rounded overflow-x-none !text-[14px]"
+							rows="1"
+							class:grayed={code_state.status === "generating"}
 							autofocus={true}
 						/>
-						{#if show_regenerate_button}
+						{#if code_state.status === "error"}
 							<button
 								on:click={async () => {
 									error_prompt = `There's an error when I run the existing code: ${app_error}`;
@@ -867,12 +988,11 @@
 							>
 								<div class="enter">Fix Error</div>
 							</button>
-						{:else if generated}
+						{:else if code_state.status === "idle"}
 							<button
 								on:click={() => {
 									suspend_and_resume_auto_run(() => {
 										generate_code(user_query, selected_demo.name);
-										auto_regenerate = true;
 									});
 								}}
 								class="flex items-center w-fit min-w-fit bg-gradient-to-r from-orange-100 to-orange-50 border border-orange-200 px-4 py-0.5 rounded-full text-orange-800 hover:shadow"
@@ -880,20 +1000,16 @@
 								<div class="enter">Ask AI</div>
 							</button>
 							<sup class="text-orange-800 text-xs ml-0.5">BETA</sup>
-						{:else}
+						{:else if code_state.status === "generating" || code_state.status === "regenerating"}
 							<button
 								on:click={() => {
 									cancelGeneration();
-									generation_error = "Cancelled!";
-									setInterval(() => {
-										generation_error = "";
-									}, 3000);
 								}}
 								class="flex items-center w-fit min-w-fit bg-gradient-to-r from-red-100 to-red-50 border border-red-200 px-4 py-0.5 rounded-full text-red-800 hover:shadow"
-								class:from-purple-100={regenerating}
-								class:to-purple-50={regenerating}
-								class:border-purple-200={regenerating}
-								class:text-purple-800={regenerating}
+								class:from-purple-100={code_state.status === "regenerating"}
+								class:to-purple-50={code_state.status === "regenerating"}
+								class:border-purple-200={code_state.status === "regenerating"}
+								class:text-purple-800={code_state.status === "regenerating"}
 							>
 								<div class="enter">Cancel</div>
 							</button>
@@ -911,7 +1027,11 @@
 					class="flex justify-between align-middle h-8 border-b pl-4 pr-2 ml-0 sm:ml-2"
 				>
 					<div class="flex align-middle">
-						<h3 class="pr-2 pt-1">Preview</h3>
+						<h3
+							class="pr-2 py-1 text-sm font-normal content-center text-[#27272a]"
+						>
+							Preview
+						</h3>
 						<p class="pt-1.5 text-sm text-gray-600 hidden sm:block">
 							{preview_width - 13}px
 						</p>
@@ -961,7 +1081,38 @@
 					</div>
 				</div>
 
-				<div class="flex-1 pl-3" id="lite-demo" bind:this={lite_element} />
+				{#if hide_preview}
+					<div class="flex-1 bg-gray-100 flex flex-col justify-center">
+						<img class="mx-auto my-5 w-48 logo grayscale" src={logo_melted} />
+						<div
+							class="mx-auto my-5 text-center max-h-fit leading-7 font-normal text-[14px] text-gray-500"
+						>
+							<p>
+								This demo requires packages that we do not support in the
+								Playground.
+							</p>
+							<p>
+								Use it on Spaces: <a
+									href={`https://huggingface.co/spaces/gradio/${selected_demo.dir}`}
+									target="_blank"
+									class="thin-link text-gray-600 font-mono font-medium text-[14px]"
+								>
+									<img
+										class="inline-block my-0 -mr-1 w-5 max-w-full pb-[2px]"
+										src="data:image/svg+xml,%3csvg%20class='mr-1%20text-gray-400'%20xmlns='http://www.w3.org/2000/svg'%20aria-hidden='true'%20viewBox='0%200%2032%2032'%3e%3cpath%20d='M7.81%2018.746v5.445h5.444v-5.445H7.809Z'%20fill='%23FF3270'/%3e%3cpath%20d='M18.746%2018.746v5.445h5.444v-5.445h-5.444Z'%20fill='%23861FFF'/%3e%3cpath%20d='M7.81%207.81v5.444h5.444V7.81H7.809Z'%20fill='%23097EFF'/%3e%3cpath%20fill-rule='evenodd'%20clip-rule='evenodd'%20d='M4%206.418A2.418%202.418%200%200%201%206.418%204h8.228c1.117%200%202.057.757%202.334%201.786a6.532%206.532%200%200%201%209.234%209.234A2.419%202.419%200%200%201%2028%2017.355v8.227A2.418%202.418%200%200%201%2025.582%2028H6.417A2.418%202.418%200%200%201%204%2025.582V6.417ZM7.81%207.81v5.444h5.444V7.81H7.81Zm0%2016.38v-5.444h5.444v5.445H7.81Zm10.936%200v-5.444h5.445v5.445h-5.445Zm0-13.658a2.722%202.722%200%201%201%205.445%200%202.722%202.722%200%200%201-5.445%200Z'/%3e%3cpath%20d='M21.468%207.81a2.722%202.722%200%201%200%200%205.444%202.722%202.722%200%200%200%200-5.444Z'%20fill='%23FFD702'/%3e%3c/svg%3e"
+									/>
+									gradio/{selected_demo.dir}
+								</a>
+							</p>
+						</div>
+					</div>
+				{/if}
+				<div
+					class:hidden={hide_preview}
+					class="flex-1 pl-3"
+					id="lite-demo"
+					bind:this={lite_element}
+				/>
 			</div>
 		</div>
 	</Slider>
@@ -1033,7 +1184,7 @@
 		border-color: #e5e7eb;
 	}
 
-	.search-bar input {
+	.search-bar textarea {
 		@apply appearance-none h-14 text-black mx-1	flex-auto min-w-0 border-none cursor-text;
 		outline: none;
 		box-shadow: none;
@@ -1044,8 +1195,8 @@
 		border: 1px solid #fcc089;
 		border-top: 2px solid #ff7c00;
 		border-radius: 50%;
-		width: 15px;
-		height: 15px;
+		min-width: 15px;
+		min-height: 15px;
 		animation: spin 1.2s linear infinite;
 	}
 
@@ -1053,8 +1204,8 @@
 		border: 1px solid rgba(208, 35, 208, 0.657);
 		border-top: 2px solid rgb(208, 35, 208);
 		border-radius: 50%;
-		width: 15px;
-		height: 15px;
+		min-width: 15px;
+		min-height: 15px;
 		animation: spin 1.2s linear infinite;
 	}
 
@@ -1206,5 +1357,27 @@
 
 	input:hover {
 		cursor: pointer;
+	}
+
+	:global(.toast-body.error) {
+		border: 1px solid var(--color-red-700) !important;
+		background: var(--color-red-50) !important;
+	}
+
+	:global(.toast-wrap) {
+		position: static !important;
+		width: 100% !important;
+	}
+
+	:global(.ͼ60) {
+		font-size: 13px;
+	}
+
+	:global(.tabs.editor-tabs) {
+		gap: 0px !important;
+	}
+
+	:global(.tabitem.editor-tabitem) {
+		margin-top: -4px !important;
 	}
 </style>
